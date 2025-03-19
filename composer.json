@@ -1,0 +1,11 @@
+{
+    "name": "guvi/login",
+    "description": "Guvi Login Project",
+    "require": {
+        "php": "^8.0",
+        "mongodb/mongodb": "^1.21",
+        "ext-mongodb": "*",
+        "ext-redis": "*",
+        "predis/predis": "^2.0"
+    }
+}
