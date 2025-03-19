@@ -5,6 +5,10 @@ require_once 'config.php';
 // Set headers for JSON response
 header('Content-Type: application/json');
 
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // Check if it's a GET request
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     echo json_encode(['success' => false, 'message' => 'Only GET method is allowed']);
@@ -47,47 +51,51 @@ try {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     $username = $user['username'];
     
-    // Get profile from MongoDB
-    $mongoDB = getMongoDBConnection();
-    $collection = $mongoDB->profiles;
+    // Initialize default profile
+    $profile = [
+        'username' => $username,
+        'email' => $email,
+        'age' => '',
+        'dob' => '',
+        'phone' => '',
+        'address' => '',
+        'bio' => ''
+    ];
     
-    $profile = $collection->findOne(['email' => $email]);
-    
-    if (!$profile) {
-        // Create a new profile if it doesn't exist
-        $collection->insertOne([
-            'email' => $email,
-            'username' => $username,
-            'age' => '',
-            'dob' => '',
-            'phone' => '',
-            'address' => '',
-            'bio' => '',
-            'created_at' => new MongoDB\BSON\UTCDateTime(time() * 1000)
-        ]);
+    try {
+        // Get profile from MongoDB
+        $mongoDB = getMongoDBConnection();
+        $collection = $mongoDB->profiles;
         
-        $profile = [
-            'username' => $username,
-            'email' => $email,
-            'age' => '',
-            'dob' => '',
-            'phone' => '',
-            'address' => '',
-            'bio' => ''
-        ];
-    } else {
-        // Convert MongoDB document to array
-        $profile = iterator_to_array($profile);
-        // Format the profile data
-        $profile = [
-            'username' => $profile['username'],
-            'email' => $profile['email'],
-            'age' => $profile['age'],
-            'dob' => $profile['dob'],
-            'phone' => $profile['phone'],
-            'address' => $profile['address'],
-            'bio' => $profile['bio']
-        ];
+        $mongoProfile = $collection->findOne(['email' => $email]);
+        
+        if (!$mongoProfile) {
+            // Create a new profile if it doesn't exist
+            $collection->insertOne([
+                'email' => $email,
+                'username' => $username,
+                'age' => '',
+                'dob' => '',
+                'phone' => '',
+                'address' => '',
+                'bio' => '',
+                'created_at' => new MongoDB\BSON\UTCDateTime(time() * 1000)
+            ]);
+        } else {
+            // Update profile with MongoDB data
+            $profile = [
+                'username' => $mongoProfile['username'],
+                'email' => $mongoProfile['email'],
+                'age' => $mongoProfile['age'] ?? '',
+                'dob' => $mongoProfile['dob'] ?? '',
+                'phone' => $mongoProfile['phone'] ?? '',
+                'address' => $mongoProfile['address'] ?? '',
+                'bio' => $mongoProfile['bio'] ?? ''
+            ];
+        }
+    } catch (Exception $e) {
+        error_log("MongoDB Error: " . $e->getMessage());
+        // Continue with default profile if MongoDB fails
     }
     
     echo json_encode([
@@ -96,8 +104,10 @@ try {
     ]);
     
 } catch (PDOException $e) {
+    error_log("MySQL Error: " . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 } catch (Exception $e) {
+    error_log("General Error: " . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
 }
 ?> 

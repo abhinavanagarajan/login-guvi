@@ -29,9 +29,17 @@ try {
     // Get MySQL connection
     $conn = getMySQLConnection();
     
+    // Debug log
+    error_log("Attempting to query user with email: " . $email);
+    
     // Check if user exists
-    $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE email = :email");
-    $stmt->bindParam(':email', $email);
+    $query = "SELECT id, username, password FROM users WHERE email = :email";
+    error_log("SQL Query: " . $query);
+    
+    $stmt = $conn->prepare($query);
+    $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+    error_log("Bound parameters: email = " . $email);
+    
     $stmt->execute();
     
     if ($stmt->rowCount() === 0) {
@@ -66,6 +74,7 @@ try {
             'message' => 'Login successful',
             'token' => $token
         ]);
+        
     } catch (Exception $e) {
         error_log("Redis Error: " . $e->getMessage());
         // If Redis fails, we can still allow login but without session persistence
@@ -78,6 +87,10 @@ try {
     
 } catch (PDOException $e) {
     error_log("MySQL Error: " . $e->getMessage());
+    error_log("MySQL Error Code: " . $e->getCode());
+    error_log("MySQL Error File: " . $e->getFile());
+    error_log("MySQL Error Line: " . $e->getLine());
+    error_log("MySQL Error Trace: " . $e->getTraceAsString());
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 } catch (Exception $e) {
     error_log("General Error: " . $e->getMessage());

@@ -40,9 +40,14 @@ try {
     // Get MySQL connection
     $conn = getMySQLConnection();
     
+    // Debug log
+    error_log("Starting registration process for username: " . $username . " and email: " . $email);
+    
     // Check if username already exists
-    $stmt = $conn->prepare("SELECT id FROM users WHERE username = :username");
-    $stmt->bindParam(':username', $username);
+    $query = "SELECT id FROM users WHERE username = :username";
+    error_log("Checking username query: " . $query);
+    $stmt = $conn->prepare($query);
+    $stmt->bindParam(':username', $username, PDO::PARAM_STR);
     $stmt->execute();
     
     if ($stmt->rowCount() > 0) {
@@ -51,8 +56,10 @@ try {
     }
     
     // Check if email already exists
-    $stmt = $conn->prepare("SELECT id FROM users WHERE email = :email");
-    $stmt->bindParam(':email', $email);
+    $query = "SELECT id FROM users WHERE email = :email";
+    error_log("Checking email query: " . $query);
+    $stmt = $conn->prepare($query);
+    $stmt->bindParam(':email', $email, PDO::PARAM_STR);
     $stmt->execute();
     
     if ($stmt->rowCount() > 0) {
@@ -64,37 +71,46 @@ try {
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
     
     // Insert user into database
-    $stmt = $conn->prepare("INSERT INTO users (username, email, password) VALUES (:username, :email, :password)");
-    $stmt->bindParam(':username', $username);
-    $stmt->bindParam(':email', $email);
-    $stmt->bindParam(':password', $hashedPassword);
+    $query = "INSERT INTO users (username, email, password) VALUES (:username, :email, :password)";
+    error_log("Insert user query: " . $query);
+    $stmt = $conn->prepare($query);
+    $stmt->bindParam(':username', $username, PDO::PARAM_STR);
+    $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+    $stmt->bindParam(':password', $hashedPassword, PDO::PARAM_STR);
     $stmt->execute();
     
     // Create MongoDB document for user profile
-    $mongoDB = getMongoDBConnection();
-    $collection = $mongoDB->profiles;
-    
-    $collection->insertOne([
-        'email' => $email,
-        'username' => $username,
-        'age' => '',
-        'dob' => '',
-        'phone' => '',
-        'address' => '',
-        'bio' => '',
-        'created_at' => new MongoDB\BSON\UTCDateTime(time() * 1000)
-    ]);
-    
-    echo json_encode(['success' => true, 'message' => 'User registered successfully']);
+    try {
+        $mongoDB = getMongoDBConnection();
+        $collection = $mongoDB->profiles;
+        
+        $collection->insertOne([
+            'email' => $email,
+            'username' => $username,
+            'age' => '',
+            'dob' => '',
+            'phone' => '',
+            'address' => '',
+            'bio' => '',
+            'created_at' => new MongoDB\BSON\UTCDateTime(time() * 1000)
+        ]);
+        
+        echo json_encode(['success' => true, 'message' => 'User registered successfully']);
+        
+    } catch (MongoDB\Driver\Exception\Exception $e) {
+        error_log("MongoDB Error: " . $e->getMessage());
+        // If MongoDB fails but MySQL succeeded, we still consider it a success
+        // as the profile can be created later
+        echo json_encode(['success' => true, 'message' => 'User registered successfully']);
+    }
     
 } catch (PDOException $e) {
     error_log("MySQL Error: " . $e->getMessage());
+    error_log("MySQL Error Code: " . $e->getCode());
+    error_log("MySQL Error File: " . $e->getFile());
+    error_log("MySQL Error Line: " . $e->getLine());
+    error_log("MySQL Error Trace: " . $e->getTraceAsString());
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-} catch (MongoDB\Driver\Exception\Exception $e) {
-    error_log("MongoDB Error: " . $e->getMessage());
-    // If MongoDB fails but MySQL succeeded, we should still consider it a success
-    // as the profile can be created later
-    echo json_encode(['success' => true, 'message' => 'User registered successfully']);
 } catch (Exception $e) {
     error_log("General Error: " . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
